@@ -6,13 +6,14 @@ from imageProcessing.extra import *
 from PIL import ImageFilter
 
 def crop(image, amount):
-	""" Die crop methode ist für die Ausführung des SeamCarving Algrotihmus verantwortlich. amount gibt dabei an um wie viel Prozent
-	das Bild skaliert werden soll. (0-1)"""
+	"""
+	The crop method is responsible for executinng the seamcarving algorithm. amount is a vlaue beetween 0-1 which determines by how many percent the image should be cropped
+	"""
 
-	luminanz_image = np.array(image.convert("L")) #erstelle ein luminanz array von dem Bild
+	luminanz_image = np.array(image.convert("L")) #create luminanz array from image
 	#importance = apply_highpass(luminanz_image, 9)
-	img = np.array((image.convert("L")).filter(ImageFilter.FIND_EDGES)) #Kantenerkennung mit Kernel
-	importance = np.array(img) #Erstelle eine Mtrix von dem Bild. Diese Matrix gibt an wie wichtig der Pixel ist. Pixel einer Kantes sind am wichtigsten.
+	img = np.array((image.convert("L")).filter(ImageFilter.FIND_EDGES)) #edge detection with kernel
+	importance = np.array(img) #create matrix of edge detected image. Pixel on edges are more important.
 	#importance = np.array([[1,3,1,1],[4,1,1,1],[1,1,1,6]])
 
 	energy, direction = calculate_energy2(importance)
@@ -30,7 +31,7 @@ def crop(image, amount):
 	exportImage(np.array(luminanz_image))
 
 def find_index_of_lowest_energy(energy):
-	""" findet den Index mit dem nierigsten Energie wert in der obersten Reihe der Matrix"""
+	"""find the index with the lowest energy value in the top most row of the matrix"""
 	y_max, x_max = energy.shape
 	lowest_value = energy[0][0]
 	lowest_index = 0
@@ -42,37 +43,37 @@ def find_index_of_lowest_energy(energy):
 
 
 def cut_and_merge(image, importance):
-	"""bekommt das zu skalierende Bild und dessen importacne Matrix Übergeben.
-	Daraus wird dann die energy und direction Matrix berechnet.
-	Danach wird jeweils der weg mit niedrigster energie aus dem Bild gelöscht, und alle Pixel "rutschen" einen auf."""
+	"""
+	Takes the image and its importance matrix as arguments and calculates the energy and direction matrix
+	The seam with the lowest energy is deleted from the image
+	"""
 	#print(energy)
 	energy, direction = calculate_energy2(importance)
 	y_max, x_max = energy.shape
 	x_max -= 1
 
 	index = find_index_of_lowest_energy(energy)
-	image = image.tolist() #konvertiere numpy ndarray zu python list objekt.
-	#Ich mache dies weil python list objekte keine festgelegte länge haben. Wenn ich ein element mit list.pop()
-	#entferne dann rutschen alle elemente einen auf. Alternativ könnte ich den das "aufrutschen" selber implementieren und dann die
-	#numpy.ndarray.resize() methode verwenden. Dies könnte vorteile für die Laufzeit erbringen.
+	image = image.tolist() #convert numpy ndarray to python lit object
+	# we are doing this because python lists are not fixed size. If an element is removed by using list.pop() the gap will also be closed automatically.
+	#alternatively we could implement the gap closing and than use numpy.ndarray.resize(). This could improve runtime.
 	importance = importance.tolist()
 	for y in range(y_max):
 		#energy[y][index] = 0
 		#removed_image = np.delete(image,index)
 		#print(index)
 
-		#finder heraus ob nach below_left below_right oder below gegangen werden muss.
+		#figures out the index of the next pixel in the seam
 		if direction[y][index] == -1:
 			index = index - 1
 		elif direction[y][index] == 1:
 			index = index + 1
 
-		image[y].pop(index) #lösche den Pixel an der stelle
-		importance[y].pop(index) #lösche den importance wert, damit die energie MAtrix neu berechnet werden kann.
-		#TODO: eventuell nur direction amtrix neu berechnen und nicht Energie Matrix
+		image[y].pop(index) #delete the pixel at the index
+		importance[y].pop(index) #delete the importance value in order recalculate the energy matrix
+		#TODO: Maybe only the direction Matrix needs to be recalculated and not the energy maatrix
 
 	#print(energy)
-	image = np.array(image) #konvertiere das python list pbejtk zurück zu numpy ndarray.
+	image = np.array(image) #convert python lsit object back to numpy ndarray.
 	importance = np.array(importance)
 	return image, importance
 
@@ -85,40 +86,42 @@ def find_direction(energy):
 		energy_below_left = energy[y][index - 1]
 
 def calculate_energy2(importance):
-	"""Berechnet die Energie von Jedem Feld des Bildes. Prinzipiell wird die Energie berechnet, indem man die importance matrix
-	von Unten nach Oben durchläuft. Die Energie der Untersten Reihe ist dabei identisch zu der Wichtigkeit. Für die nächst höhere Reihe
-	werden die direkten unteren Narbarn (energy_below_right, energy_below_left, energy_below) betrachtet. Und es wird die Energie des Nachbarns
-	mit der geringsten Energie zu der Energie des betrachteten Feldes addiert. Gleichzeitig wird in die direction Matrix eingetragen in welche,
-	welcher nachbar die niedrigste Energie besitzt (-1 = below_left 0 = below 1 = below_right)
-
-	TODO: Im moment wird die energy jedes mal neu berechnet wenn eine reihe von Pixeln entfernt wird, da es sontzt zu grafik Fehlern
-	im skalierten Bild kommt (siehe carveImage1.py). Eventuell reicht es aber NUR die Richtungs Matrix jedes mal neu zu berechnen.
-	Dies könnt edie Laufzeit deutlich verkürzen"""
+	"""
+	Calculates the energy of each pixel in the image.
+	Energy is calculated by going through the image bottom to top. The energy in the bottom row is identical to the importance. For the next higher row
+	we will look at its direct neighbours (energy_below_right, energy_below_left, energy_below). The neighbour with the lowest energy value is than added
+	to the importacne of the current pixel. This value is the energy of that pixel.
+	Depending on which neighbour has the lowest energy a value is entered in the direction matrix (-1 = below_left 0 = below 1 = below_right). We can later follow 
+	that matrix to create the seam.
+	
+	TODO: at the moment the energy is recalculated with each time a seam is removed from the image. If this is not done there will be graphical glitches.
+	However it might be enough to only recalculate the direction matrix. THis could drastically decrease runtime.
+	"""
 
 	y_max, x_max = importance.shape
 	y_max -= 1
 	x_max -= 1
-	energy = np.zeros(importance.shape) #erstelle energy Matrix mit gleicher dimension der importance Matrix
+	energy = np.zeros(importance.shape) #create energy matrix with the same dimensions as the importance matrix
 	n_energy = np.zeros(importance.shape)
 	direction = np.zeros(importance.shape)
 	current_importance = 0
 	energy_below = 0
 	energy_below_left = 0
 	energy_below_right = 0
-	for y in range(y_max,-1,-1): #für jede Reihe von Unten nach Oben wiederhole:
+	for y in range(y_max,-1,-1): #for each row top to bottom repeat:
 		for x in range(x_max + 1):
 			current_importance = importance[y][x]
 
-			if y == y_max: #falls wir in der untersten Reihe sind.
+			if y == y_max: #if we are at the lowest row
 				energy[y][x] = current_importance
 				direction[y][x] = 0
 
-			elif x == 0: #falls wir ganz links in der Reihe sind. Notwendig, weil es dann keine energy_below_left Nachbar gibt.
-				#TO DO: Eventuel könnte dieser Verzweiungsbaum entfernt werden durch die Verwendung von try: und catch: Welche Laufzeit ist besser?
-				energy_below = energy[y + 1][x] #Feld eine Zeile unter dem derzeitigen Feld
-				energy_below_right = energy[y + 1][x + 1] # Felde eine Zeile unter dme derzeitigen Feld und einen nach rechts
+			elif x == 0: #if we are at the left most column. This is necessary because ther is no energy_below_left neighbour
+				#TODO: This decision tree could be removed by using try: and cath:. Which runtime is better?
+				energy_below = energy[y + 1][x] #field underneath the current field
+				energy_below_right = energy[y + 1][x + 1] #field below and to the right of the current field
 
-				#findet den Nachbarn mit der Niedrigsten Energy
+				#find neighbour of lowest energy
 				if energy_below > energy_below_right:
 					energy[y][x] = current_importance + energy_below_right
 					direction[y][x] = 1
@@ -126,7 +129,7 @@ def calculate_energy2(importance):
 					energy[y][x] = current_importance + energy_below
 					direction[y][x] = 0
 
-			elif x == x_max: #genauso wie vorheriger edge case. Diesmal gibt es keine energy_below_right nachbarn
+			elif x == x_max: #the same as previous edge case. Missing energy_below_right neighbour
 				energy_below = energy[y + 1][x]
 				energy_below_left = energy[y + 1][x - 1]
 
@@ -138,7 +141,7 @@ def calculate_energy2(importance):
 					energy[y][x] = current_importance + energy_below
 					direction[y][x] = 0
 
-			else: #kein sonderfall alle nachabrn existieren
+			else: #no edge case all neighbours exist
 				energy_below_left = energy[y + 1][x - 1]
 				energy_below_right = energy[y + 1][x + 1]
 				energy_below = energy[y + 1][x]
@@ -160,62 +163,5 @@ def calculate_energy2(importance):
 	#print(energy)
 	return energy, direction
 
-
-def calculate_energy(importance):
-	y_max, x_max = importance.shape
-	y_max = y_max - 1
-	x_max = x_max - 1
-	energy = np.zeros(importance.shape)
-	current_importance = 0
-	current_coordinate = 0, 0
-	energy_below = 0
-	energy_below_left = 0
-	energy_below_right = 0
-	print(x_max - 1)
-	for y in range(y_max + 1):
-		for x in range(x_max + 1):
-
-			current_importance = importance[y_max - y][x]
-			if y == 0:
-				#print("y 0")
-				energy[y_max - y][x] = current_importance
-			elif x == 0:
-				#print("x 1")
-				energy_below = energy[y_max - y - 1][x]
-				energy_below_right = energy[y_max - y - 1][x + 1]
-
-				if energy_below > energy_below_right:
-					energy[y_max - y][x] = current_importance + energy_below_right
-				else:
-					energy[y_max - y][x] = current_importance + energy_below
-
-			elif x == x_max - 1:
-				#print("x = " + str(x))
-				#print("x max")
-				energy_below = energy[y_max - y - 1][x]
-				energy_below_left = energy[y_max - y - 1][x - 1]
-
-				if energy_below > energy_below_left:
-					energy[y_max - y][x] = current_importance + energy_below_left
-				else:
-					energy[y_max - y][x] = current_importance + energy_below
-
-			else:
-				#print("else")
-				energy_below = energy[y_max - y - 1][x]
-				energy_below_left = energy[y_max - y - 1][x - 1]
-				#print(x_max)
-				energy_below_right = energy[y_max - y - 1][x + 1]
-
-				if energy_below < energy_below_left and energy_below < energy_below_right:
-					energy[y_max - y][x] = current_importance + energy_below
-
-				elif energy_below_left < energy_below and energy_below_left < energy_below_right:
-					energy[y_max - y][x] = current_importance + energy_below_left
-				else:
-					energy[y_max - y][x] = current_importance + energy_below_right
-	print(energy)
-	return energy
-
-
-crop(Image.open("salvadore_deli.jpeg"),0.4)
+if __name__ == '__main__':
+	crop(Image.open("salvadore_deli.jpeg"),0.4)
