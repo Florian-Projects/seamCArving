@@ -1,3 +1,3 @@
 # seamCarving
-Dies ist meine Implemtierung des seamCArvingAlgorithmus für inhaltsbasierende Bildskalierung.
-Sie basiert auf dieser Vorlesung: https://youtu.be/rpB6zQNsbQU.
+This is my (in privat collaboration with friends) implementation of the seamCarving algorithm based on this lecture: https://youtu.be/rpB6zQNsbQU.
+
