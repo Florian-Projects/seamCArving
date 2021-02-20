@@ -1,8 +1,5 @@
 import PIL.Image as Image
-from PIL import ImageDraw
-import numpy as np
-import numpy.fft as fft
-from imageProcessing.extra import *
+from Skript.imageProcessing.extras import *
 from PIL import ImageFilter
 
 def crop(image, amount):
